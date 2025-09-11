@@ -14,53 +14,88 @@ import Mathlib.Topology.ContinuousMap.SecondCountableSpace
 
 -/
 
-open MeasureTheory NNReal WithLp Finset
+open MeasureTheory NNReal WithLp Finset Function
 open scoped ENNReal NNReal Topology
 
 namespace ProbabilityTheory
 
 section hasLaw
 
-lemma hasLaw_id {Ω : Type*} {hΩ : MeasurableSpace Ω} {P : Measure Ω} : HasLaw id P P where
-  aemeasurable := aemeasurable_id
-  map_eq := Measure.map_id
+-- This should go into hasLaw.lean
 
-lemma hasLaw_self {Ω α : Type*} {hΩ : MeasurableSpace Ω} {P : Measure Ω} (X : Ω → α)
+lemma hasLaw_rfl {Ω α : Type*} {hΩ : MeasurableSpace Ω} {P : Measure Ω} (X : Ω → α)
     {hα : MeasurableSpace α} (hX : AEMeasurable X P) : HasLaw X (P.map X) P where
   aemeasurable := hX
   map_eq := rfl
 
+lemma hasLaw_id {Ω : Type*} {hΩ : MeasurableSpace Ω} {P : Measure Ω} : HasLaw id P P where
+  aemeasurable := aemeasurable_id
+  map_eq := Measure.map_id
+
 end hasLaw
 
-def preBrownian : ℝ≥0 → (ℝ≥0 → ℝ) → ℝ := fun t ω ↦ ω t
+section basic
+
+variable {ι : Type*} {α : ι → Type*}
+
+def canonical (t : ι) (ω : (s : ι) → α s) : α t := ω t
+
+-- def IsStochasticProcess
 
 @[fun_prop]
-lemma measurable_preBrownian (t : ℝ≥0) : Measurable (preBrownian t) := by
+lemma measurable_canonical [∀ i, MeasurableSpace (α i)] (t : ι) :
+    Measurable (β := α t) (canonical t) := by
+  unfold canonical
+  fun_prop
+
+
+--   [(i : ι) → TopologicalSpace (α i)] [∀ (i : ι), BorelSpace (α i)] [∀ (i : ι), PolishSpace (α i)]
+
+end basic
+
+variable {ι : Type*} {α : ℝ≥0 → Type*}
+
+def preBrownian (t : ℝ≥0) (ω : (s : ℝ≥0) → α s) : α t := ω t
+
+@[fun_prop]
+lemma measurable_eval [∀ i, MeasurableSpace (α i)](t : ℝ≥0) : Measurable (β := α t) (preBrownian t) := by
   unfold preBrownian
   fun_prop
 
-def canonicalProcess : ℝ≥0 → (ℝ≥0 → ℝ) → ℝ := fun t ω ↦ ω t
+-- def canonicalProcess : ℝ≥0 → (ℝ≥0 → ℝ) → ℝ := fun t ω ↦ ω t
 
 example : (fun ω ↦ (preBrownian · ω)) = id := rfl
 
 lemma hasLaw_preBrownian : HasLaw id gaussianLimit gaussianLimit := hasLaw_id
+
 lemma hasLaw_canonicalProcess {P : Measure (ℝ≥0 → ℝ)} : HasLaw id P P where
   aemeasurable := aemeasurable_id
   map_eq := Measure.map_id
 
 example : (fun ω ↦ (preBrownian · ω)) = id := rfl
 
-lemma hasLaw_preBrownian : HasLaw (fun ω ↦ (preBrownian · ω)) gaussianLimit gaussianLimit where
-  aemeasurable := aemeasurable_id
-  map_eq := Measure.map_id
+-- lemma hasLaw_preBrownian : HasLaw (fun ω ↦ (preBrownian · ω)) gaussianLimit gaussianLimit where
+--   aemeasurable := aemeasurable_id
+--  map_eq := Measure.map_id
 
-lemma hasLaw_restrict_preBrownian (I : Finset ℝ≥0) :
-    HasLaw (fun ω ↦ I.restrict (preBrownian · ω)) (gaussianProjectiveFamily I) gaussianLimit :=
+
+variable {ι : Type*} {α : ι → Type*} [∀ i, MeasurableSpace (α i)] [(i : ι) → MeasurableSpace (α i)]
+  [(i : ι) → TopologicalSpace (α i)] [∀ (i : ι), BorelSpace (α i)] [∀ (i : ι), PolishSpace (α i)]
+
+def canonicalProcess : (s : ι) → ((t : ι) → α t) → α s := fun s ω ↦ ω s
+
+lemma hasLaw_restrict_projectiveFamily (P : ∀ J : Finset ι, Measure (Π j : J, α j))
+    [∀ i, IsFiniteMeasure (P i)] (hP : IsProjectiveMeasureFamily P) (I : Finset ι) :
+    HasLaw (fun ω ↦ I.restrict (canonicalProcess · ω)) (P I) (projectiveLimit P hP) :=
   hasLaw_restrict_gaussianLimit.comp hasLaw_preBrownian
 
+-- lemma hasLaw_restrict_preBrownian (I : Finset ℝ≥0) :
+--     HasLaw (fun ω ↦ I.restrict (canonicalProcess · ω)) (brownianProjectiveFamily I) gaussianLimit :=
+--   hasLaw_restrict_gaussianLimit.comp hasLaw_preBrownian
+
 lemma hasLaw_preBrownian_eval (t : ℝ≥0) :
-    HasLaw (preBrownian t) (gaussianReal 0 t) gaussianLimit :=
-  (hasLaw_eval_gaussianProjectiveFamily ⟨t, by simp⟩).comp
+    HasLaw (eval t) (gaussianReal 0 t) gaussianLimit :=
+  (hasLaw_eval_brownianProjectiveFamily ⟨t, by simp⟩).comp
     (hasLaw_restrict_preBrownian ({t} : Finset ℝ≥0))
 
 instance isGaussianProcess_preBrownian : IsGaussianProcess preBrownian gaussianLimit where
